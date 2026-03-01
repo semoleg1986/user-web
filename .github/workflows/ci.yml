@@ -1,6 +1,9 @@
 name: ci
 
-on: push
+on:
+  pull_request:
+  push:
+    branches: [ main ]
 
 jobs:
   ci:
@@ -13,13 +16,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
       - name: Install node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -32,3 +35,6 @@ jobs:
 
       - name: Typecheck
         run: pnpm run typecheck
+
+      - name: Contract checks
+        run: pnpm run test:contract
