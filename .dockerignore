@@ -1,0 +1,11 @@
+.git
+.github
+.nuxt
+node_modules
+npm-debug.log*
+pnpm-debug.log*
+.env
+.env.*
+dist
+.idea
+.vscode
