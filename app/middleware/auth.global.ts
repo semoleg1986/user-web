@@ -1,5 +1,6 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  if (!to.path.startsWith('/children')) return
+  const protectedPrefixes = ['/children', '/assignments', '/attempts']
+  if (!protectedPrefixes.some(prefix => to.path.startsWith(prefix))) return
 
   if (import.meta.server) {
     const token = useCookie('access_token')
@@ -11,8 +12,12 @@ export default defineNuxtRouteMiddleware(async (to) => {
 
   try {
     await $fetch('/api/me')
-  } catch (err: any) {
-    if (err?.statusCode === 401 || err?.statusCode === 403) {
+  } catch (err: unknown) {
+    const statusCode
+      = typeof err === 'object' && err !== null && 'statusCode' in err
+        ? (err as { statusCode?: number }).statusCode
+        : undefined
+    if (statusCode === 401 || statusCode === 403) {
       return navigateTo('/login')
     }
     return

@@ -22,6 +22,7 @@ export default defineNuxtConfig({
   runtimeConfig: {
     authServiceUrl: process.env.AUTH_SERVICE_URL || 'http://localhost:8000',
     userChildrenServiceUrl: process.env.USER_CHILDREN_SERVICE_URL || 'http://localhost:8001',
+    assessmentServiceUrl: process.env.ASSESSMENT_SERVICE_URL || 'http://localhost:8003',
     accessCookieName: process.env.ACCESS_COOKIE_NAME || 'access_token',
     refreshCookieName: process.env.REFRESH_COOKIE_NAME || 'refresh_token',
     cookieSecure: process.env.COOKIE_SECURE === 'true',

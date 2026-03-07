@@ -2,49 +2,120 @@
   <main class="page">
     <header class="header">
       <div>
-        <p class="eyebrow">Children</p>
+        <p class="eyebrow">
+          Children
+        </p>
         <h1>Your children</h1>
       </div>
-      <button class="btn btn--ghost" @click="loadChildren" :disabled="loading">
+      <button
+        class="btn btn--ghost"
+        :disabled="loading"
+        @click="loadChildren"
+      >
         Refresh
       </button>
     </header>
 
     <section class="card">
-      <form class="form" @submit.prevent="onCreateUser">
+      <form
+        class="form"
+        @submit.prevent="onCreateUser"
+      >
         <h3>Create user profile</h3>
         <div class="row">
-          <input v-model="userName" type="text" placeholder="Your name" required />
-          <button class="btn" type="submit" :disabled="loading">Create</button>
+          <input
+            v-model="userName"
+            type="text"
+            placeholder="Your name"
+            required
+          >
+          <button
+            class="btn"
+            type="submit"
+            :disabled="loading"
+          >
+            Create
+          </button>
         </div>
       </form>
 
-      <form class="form" @submit.prevent="onAddChild">
+      <form
+        class="form"
+        @submit.prevent="onAddChild"
+      >
         <h3>Add child</h3>
         <div class="grid">
-          <input v-model="childName" type="text" placeholder="Child name" required />
-          <input v-model="childBirthdate" type="date" required />
+          <input
+            v-model="childName"
+            type="text"
+            placeholder="Child name"
+            required
+          >
+          <input
+            v-model="childBirthdate"
+            type="date"
+            required
+          >
         </div>
-        <button class="btn" type="submit" :disabled="loading">Add child</button>
+        <button
+          class="btn"
+          type="submit"
+          :disabled="loading"
+        >
+          Add child
+        </button>
       </form>
     </section>
 
     <section class="list">
-      <article v-for="child in children" :key="child.child_id" class="child">
+      <article
+        v-for="child in children"
+        :key="child.child_id"
+        class="child"
+      >
         <div>
           <h3>{{ child.name }}</h3>
           <p>{{ child.birthdate }}</p>
         </div>
-        <button class="btn btn--ghost" @click="removeChild(child.child_id)">Delete</button>
+        <div class="actions">
+          <NuxtLink
+            class="btn btn--ghost"
+            :to="`/assignments/${child.child_id}`"
+          >
+            Assignments
+          </NuxtLink>
+          <button
+            class="btn btn--ghost"
+            @click="removeChild(child.child_id)"
+          >
+            Delete
+          </button>
+        </div>
       </article>
     </section>
 
-    <p v-if="error" class="error">{{ error }}</p>
+    <p
+      v-if="error"
+      class="error"
+    >
+      {{ error }}
+    </p>
   </main>
 </template>
 
 <script setup lang="ts">
-const children = ref<any[]>([])
+type Child = {
+  child_id: string
+  name: string
+  birthdate: string
+}
+
+type HttpError = {
+  statusCode?: number
+  data?: { detail?: string }
+}
+
+const children = ref<Child[]>([])
 const loading = ref(false)
 const error = ref('')
 
@@ -57,15 +128,16 @@ const loadChildren = async () => {
   loading.value = true
   try {
     children.value = await $fetch('/api/children')
-  } catch (err: any) {
-    if (err?.statusCode === 404) {
+  } catch (err: unknown) {
+    const e = err as HttpError
+    if (e.statusCode === 404) {
       error.value = 'User profile not found. Create your profile first.'
       children.value = []
-    } else if (err?.statusCode === 503) {
+    } else if (e.statusCode === 503) {
       error.value = 'User-children service is unavailable. Try again in a moment.'
       children.value = []
     } else {
-      error.value = err?.data?.detail || 'Failed to load children'
+      error.value = e.data?.detail || 'Failed to load children'
     }
   } finally {
     loading.value = false
@@ -78,11 +150,11 @@ const onCreateUser = async () => {
   try {
     await $fetch('/api/user/create', {
       method: 'POST',
-      body: { name: userName.value },
+      body: { name: userName.value }
     })
     await loadChildren()
-  } catch (err: any) {
-    error.value = err?.data?.detail || 'Failed to create user'
+  } catch (err: unknown) {
+    error.value = (err as HttpError).data?.detail || 'Failed to create user'
   } finally {
     loading.value = false
   }
@@ -94,13 +166,13 @@ const onAddChild = async () => {
   try {
     await $fetch('/api/children', {
       method: 'POST',
-      body: { name: childName.value, birthdate: childBirthdate.value },
+      body: { name: childName.value, birthdate: childBirthdate.value }
     })
     childName.value = ''
     childBirthdate.value = ''
     await loadChildren()
-  } catch (err: any) {
-    error.value = err?.data?.detail || 'Failed to add child'
+  } catch (err: unknown) {
+    error.value = (err as HttpError).data?.detail || 'Failed to add child'
   } finally {
     loading.value = false
   }
@@ -112,8 +184,8 @@ const removeChild = async (childId: string) => {
   try {
     await $fetch(`/api/children/${childId}`, { method: 'DELETE' })
     await loadChildren()
-  } catch (err: any) {
-    error.value = err?.data?.detail || 'Failed to remove child'
+  } catch (err: unknown) {
+    error.value = (err as HttpError).data?.detail || 'Failed to remove child'
   } finally {
     loading.value = false
   }
@@ -197,6 +269,10 @@ input {
   padding: 16px;
   border-radius: 14px;
   border: 1px solid #e5e7eb;
+}
+.actions {
+  display: flex;
+  gap: 8px;
 }
 .error {
   max-width: 900px;
