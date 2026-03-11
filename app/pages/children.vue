@@ -583,3 +583,4 @@ input {
   background: #2563eb;
   color: #e5e7eb;
 }
+</style>
