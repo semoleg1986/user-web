@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
     birthdate = readRequiredDateField(rawBody, 'birthdate')
   }
   if (!name && !birthdate) {
-    throw createError({ statusCode: 422, statusMessage: "At least one field is required: 'name' or 'birthdate'" })
+    throw createError({ statusCode: 422, statusMessage: 'At least one field is required: \'name\' or \'birthdate\'' })
   }
 
   return await fetchWithAuthRetry(
@@ -34,7 +34,7 @@ export default defineEventHandler(async (event) => {
     `${config.userChildrenServiceUrl}/v1/user/users/${userId}/children/${childId}`,
     {
       method: 'PATCH',
-      body: { name, birthdate },
+      body: { name, birthdate }
     }
   )
 })

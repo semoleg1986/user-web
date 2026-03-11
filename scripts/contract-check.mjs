@@ -10,7 +10,7 @@ function loadSpec(serviceDir) {
     process.cwd(),
     '..',
     serviceDir,
-    'openapi.yaml',
+    'openapi.yaml'
   )
 
   if (!fs.existsSync(specPath)) {

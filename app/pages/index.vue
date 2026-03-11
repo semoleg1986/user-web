@@ -1,9 +1,13 @@
 <template>
   <main class="page">
     <section class="splash">
-      <p class="eyebrow">User Portal</p>
+      <p class="eyebrow">
+        User Portal
+      </p>
       <h1>Redirecting…</h1>
-      <p class="subtitle">Taking you to login.</p>
+      <p class="subtitle">
+        Taking you to login.
+      </p>
     </section>
   </main>
 </template>

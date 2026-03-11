@@ -23,7 +23,7 @@ export default defineEventHandler(async (event) => {
     `${config.userChildrenServiceUrl}/v1/user/users/${userId}/children/${childId}/stories`,
     {
       method: 'POST',
-      body: { title, content },
+      body: { title, content }
     }
   )
 })

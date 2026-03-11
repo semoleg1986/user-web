@@ -2,7 +2,9 @@
   <main class="page">
     <section class="card">
       <header>
-        <p class="eyebrow">Auth</p>
+        <p class="eyebrow">
+          Auth
+        </p>
         <h1>{{ mode === 'login' ? 'Login' : 'Register' }}</h1>
         <p class="subtitle">
           {{
@@ -14,38 +16,77 @@
       </header>
 
       <div class="tabs">
-        <button :class="['tab', mode === 'login' && 'active']" @click="mode = 'login'">
+        <button
+          :class="['tab', mode === 'login' && 'active']"
+          @click="mode = 'login'"
+        >
           Login
         </button>
-        <button :class="['tab', mode === 'register' && 'active']" @click="mode = 'register'">
+        <button
+          :class="['tab', mode === 'register' && 'active']"
+          @click="mode = 'register'"
+        >
           Register
         </button>
       </div>
 
-      <form class="form" @submit.prevent="mode === 'login' ? onLogin() : onRegister()">
+      <form
+        class="form"
+        @submit.prevent="mode === 'login' ? onLogin() : onRegister()"
+      >
         <label>
           Identifier
-          <input v-model="identifier" type="text" placeholder="email or phone" required />
+          <input
+            v-model="identifier"
+            type="text"
+            placeholder="email or phone"
+            required
+          >
         </label>
         <label>
           Password
-          <input v-model="password" type="password" placeholder="••••••" required />
+          <input
+            v-model="password"
+            type="password"
+            placeholder="••••••"
+            required
+          >
         </label>
 
-        <div v-if="mode === 'register'" class="hint">
+        <div
+          v-if="mode === 'register'"
+          class="hint"
+        >
           We will redirect you to login after registration.
         </div>
 
-        <button class="btn" type="submit" :disabled="loading">
+        <button
+          class="btn"
+          type="submit"
+          :disabled="loading"
+        >
           {{ loading ? 'Please wait…' : mode === 'login' ? 'Login' : 'Register' }}
         </button>
       </form>
 
-      <p v-if="notice" class="notice">{{ notice }}</p>
-      <p v-if="error" class="error">{{ error }}</p>
+      <p
+        v-if="notice"
+        class="notice"
+      >
+        {{ notice }}
+      </p>
+      <p
+        v-if="error"
+        class="error"
+      >
+        {{ error }}
+      </p>
 
       <div class="actions">
-        <NuxtLink to="/children" class="link">Go to children</NuxtLink>
+        <NuxtLink
+          to="/children"
+          class="link"
+        >Go to children</NuxtLink>
       </div>
     </section>
   </main>
@@ -62,6 +103,22 @@ const authState = useState('auth', () => ({
   isAuthed: false
 }))
 
+type ApiError = {
+  data?: {
+    detail?: string
+  }
+}
+
+const getErrorDetail = (err: unknown, fallback: string): string => {
+  if (typeof err === 'object' && err !== null) {
+    const data = (err as ApiError).data
+    if (typeof data?.detail === 'string' && data.detail) {
+      return data.detail
+    }
+  }
+  return fallback
+}
+
 const onRegister = async () => {
   error.value = ''
   loading.value = true
@@ -75,7 +132,7 @@ const onRegister = async () => {
     }
     const reg = await $fetch<{ alreadyExists?: boolean }>('/api/auth/register', {
       method: 'POST',
-      body,
+      body
     })
     if (reg?.alreadyExists) {
       notice.value = 'Account already exists. Please sign in.'
@@ -84,12 +141,12 @@ const onRegister = async () => {
     }
     await $fetch('/api/auth/login', {
       method: 'POST',
-      body: { identifier: identifier.value, password: password.value },
+      body: { identifier: identifier.value, password: password.value }
     })
     authState.value.isAuthed = true
     await navigateTo('/children')
-  } catch (err: any) {
-    error.value = err?.data?.detail || 'Registration failed'
+  } catch (err: unknown) {
+    error.value = getErrorDetail(err, 'Registration failed')
   } finally {
     loading.value = false
   }
@@ -101,12 +158,12 @@ const onLogin = async () => {
   try {
     await $fetch('/api/auth/login', {
       method: 'POST',
-      body: { identifier: identifier.value, password: password.value },
+      body: { identifier: identifier.value, password: password.value }
     })
     authState.value.isAuthed = true
     await navigateTo('/children')
-  } catch (err: any) {
-    error.value = err?.data?.detail || 'Login failed'
+  } catch (err: unknown) {
+    error.value = getErrorDetail(err, 'Login failed')
   } finally {
     loading.value = false
   }

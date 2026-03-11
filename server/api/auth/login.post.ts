@@ -8,10 +8,10 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
 
   const res = await $fetch<{ user_id: string, tokens: { access_token: string, refresh_token: string } }>(
-      `${config.authServiceUrl}/v1/auth/login`,
-      {
-        method: 'POST',
-        body: { identifier, password }
+    `${config.authServiceUrl}/v1/auth/login`,
+    {
+      method: 'POST',
+      body: { identifier, password }
     }
   )
 

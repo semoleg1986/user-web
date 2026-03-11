@@ -34,17 +34,29 @@ const signOut = async () => {
   authState.value.isAuthed = false
   await navigateTo('/login')
 }
-
 </script>
 
 <template>
   <UApp>
     <div class="app-shell">
       <header class="topbar">
-        <NuxtLink :to="authState.isAuthed ? '/children' : '/login'" class="brand">User Portal</NuxtLink>
+        <NuxtLink
+          :to="authState.isAuthed ? '/children' : '/login'"
+          class="brand"
+        >User Portal</NuxtLink>
         <nav class="nav">
-          <NuxtLink v-if="!authState.isAuthed" to="/login" class="nav-link">Login</NuxtLink>
-          <button v-if="authState.isAuthed" class="nav-link btn-link" @click="signOut">Sign out</button>
+          <NuxtLink
+            v-if="!authState.isAuthed"
+            to="/login"
+            class="nav-link"
+          >Login</NuxtLink>
+          <button
+            v-if="authState.isAuthed"
+            class="nav-link btn-link"
+            @click="signOut"
+          >
+            Sign out
+          </button>
           <UColorModeButton />
         </nav>
       </header>

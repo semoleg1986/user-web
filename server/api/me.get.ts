@@ -19,21 +19,21 @@ export default defineEventHandler(async (event) => {
 
     return { user_id: userId, children, needs_profile: false }
   } catch (err: unknown) {
-    const statusCode =
-      typeof err === 'object' && err !== null && 'statusCode' in err
+    const statusCode
+      = typeof err === 'object' && err !== null && 'statusCode' in err
         ? (err as { statusCode?: number }).statusCode
         : undefined
-    const message =
-      typeof err === 'object' && err !== null && 'message' in err
+    const message
+      = typeof err === 'object' && err !== null && 'message' in err
         ? String((err as { message?: unknown }).message ?? '')
         : ''
-    const code =
-      typeof err === 'object' &&
-      err !== null &&
-      'cause' in err &&
-      typeof (err as { cause?: unknown }).cause === 'object' &&
-      (err as { cause?: unknown }).cause !== null &&
-      'code' in ((err as { cause?: unknown }).cause as object)
+    const code
+      = typeof err === 'object'
+        && err !== null
+        && 'cause' in err
+        && typeof (err as { cause?: unknown }).cause === 'object'
+        && (err as { cause?: unknown }).cause !== null
+        && 'code' in ((err as { cause?: unknown }).cause as object)
         ? ((err as { cause?: { code?: string } }).cause?.code ?? '')
         : ''
 

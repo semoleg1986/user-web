@@ -9,6 +9,6 @@ export default defineEventHandler(async (event) => {
   }
 
   return await fetchWithAuthRetry(event, `${config.userChildrenServiceUrl}/v1/user/users/${userId}/children`, {
-    method: 'GET',
+    method: 'GET'
   })
 })

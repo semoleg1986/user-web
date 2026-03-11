@@ -1,5 +1,5 @@
-const UUID_V4_RE =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const UUID_V4_RE
+  = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
 
 type RecordLike = Record<string, unknown>
@@ -14,7 +14,7 @@ function asRecord(value: unknown): RecordLike {
 export function readRequiredStringField(
   body: unknown,
   field: string,
-  opts?: { minLength?: number; maxLength?: number }
+  opts?: { minLength?: number, maxLength?: number }
 ): string {
   const record = asRecord(body)
   const value = record[field]
@@ -43,7 +43,7 @@ export function readRequiredStringField(
 export function readOptionalStringField(
   body: unknown,
   field: string,
-  opts?: { minLength?: number; maxLength?: number }
+  opts?: { minLength?: number, maxLength?: number }
 ): string | undefined {
   const record = asRecord(body)
   if (!(field in record) || record[field] === undefined || record[field] === null) {

@@ -19,7 +19,7 @@ export default defineEventHandler(async (event) => {
     event,
     `${config.userChildrenServiceUrl}/v1/user/users/${userId}/children/${childId}`,
     {
-      method: 'DELETE',
+      method: 'DELETE'
     }
   )
 

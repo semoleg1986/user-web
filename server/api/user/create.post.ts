@@ -15,12 +15,12 @@ export default defineEventHandler(async (event) => {
   try {
     const res = await fetchWithAuthRetry(event, `${config.userChildrenServiceUrl}/v1/user/users`, {
       method: 'POST',
-      body: { name },
+      body: { name }
     })
     return res
   } catch (err: unknown) {
-    const statusCode =
-      typeof err === 'object' && err !== null && 'statusCode' in err
+    const statusCode
+      = typeof err === 'object' && err !== null && 'statusCode' in err
         ? (err as { statusCode?: number }).statusCode
         : undefined
     if (statusCode === 409) {

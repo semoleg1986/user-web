@@ -15,6 +15,6 @@ export default defineEventHandler(async (event) => {
 
   return await fetchWithAuthRetry(event, `${config.userChildrenServiceUrl}/v1/user/users/${userId}/children`, {
     method: 'POST',
-    body: { name, birthdate },
+    body: { name, birthdate }
   })
 })

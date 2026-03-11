@@ -22,7 +22,7 @@ export function setAccessToken(event: H3Event, token: string, secure: boolean, s
     httpOnly: true,
     secure,
     sameSite: sameSite as 'lax' | 'strict' | 'none',
-    path: '/',
+    path: '/'
   })
 }
 
@@ -31,7 +31,7 @@ export function setRefreshToken(event: H3Event, token: string, secure: boolean, 
     httpOnly: true,
     secure,
     sameSite: sameSite as 'lax' | 'strict' | 'none',
-    path: '/',
+    path: '/'
   })
 }
 
@@ -47,10 +47,15 @@ type RefreshResponse = {
 
 type AuthFetchOptions = {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
-  body?: any
+  body?: unknown
   query?: Record<string, string | number | boolean | undefined>
   headers?: Record<string, string>
 }
+
+type AuthFetcher = <T>(
+  request: string,
+  options?: AuthFetchOptions
+) => Promise<T>
 
 export async function ensureAccessToken(event: H3Event): Promise<string> {
   const token = getAccessToken(event)
@@ -85,26 +90,26 @@ export async function fetchWithAuthRetry<T>(
   url: string,
   options: AuthFetchOptions = {}
 ): Promise<T> {
-  const fetcher = $fetch as any
+  const fetcher = $fetch as unknown as AuthFetcher
   let accessToken = await ensureAccessToken(event)
   try {
-    return await fetcher(url, {
+    return await fetcher<T>(url, {
       ...options,
       headers: {
         ...(options.headers || {}),
         Authorization: `Bearer ${accessToken}`
       }
-    }) as T
+    })
   } catch (err: unknown) {
     if (!isUnauthorized(err)) throw err
     accessToken = await refreshTokens(event)
-    return await fetcher(url, {
+    return await fetcher<T>(url, {
       ...options,
       headers: {
         ...(options.headers || {}),
         Authorization: `Bearer ${accessToken}`
       }
-    }) as T
+    })
   }
 }
 
