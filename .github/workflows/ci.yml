@@ -30,6 +30,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
+      - name: Checkout provider specs (auth-service)
+        uses: actions/checkout@v4
+        with:
+          repository: semoleg1986/auth-service
+          path: deps/auth-service
+
+      - name: Checkout provider specs (user-children-service)
+        uses: actions/checkout@v4
+        with:
+          repository: semoleg1986/user-children-service
+          path: deps/user-children-service
+
       - name: Lint
         run: pnpm run lint
 
@@ -38,3 +50,5 @@ jobs:
 
       - name: Contract checks
         run: pnpm run test:contract
+        env:
+          CONTRACT_SPECS_BASE_DIR: ${{ github.workspace }}/deps

@@ -6,9 +6,11 @@ function fail(message) {
 }
 
 function loadSpec(serviceDir) {
+  const baseDir = process.env.CONTRACT_SPECS_BASE_DIR
+    ? path.resolve(process.env.CONTRACT_SPECS_BASE_DIR)
+    : path.resolve(process.cwd(), '..')
   const specPath = path.resolve(
-    process.cwd(),
-    '..',
+    baseDir,
     serviceDir,
     'openapi.yaml'
   )
