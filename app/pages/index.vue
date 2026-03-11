@@ -13,8 +13,16 @@
 </template>
 
 <script setup lang="ts">
-onMounted(() => {
-  navigateTo('/login')
+onMounted(async () => {
+  try {
+    await $fetch('/api/me')
+    await navigateTo('/children')
+    return
+  } catch {
+    // no-op
+  }
+
+  await navigateTo('/login')
 })
 </script>
 
@@ -23,20 +31,26 @@ onMounted(() => {
   min-height: 100vh;
   display: grid;
   place-items: center;
-  background: radial-gradient(circle at 20% 10%, #f1f4ff, #fff 40%, #fdf6f0 85%);
-  color: #1f2937;
+  background:
+    linear-gradient(180deg, rgba(52, 211, 153, 0.08) 0%, rgba(52, 211, 153, 0) 180px),
+    var(--bg);
+  color: var(--text);
   padding: 24px;
 }
 .splash {
   text-align: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px;
 }
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.2em;
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--muted);
 }
 .subtitle {
-  color: #6b7280;
+  color: var(--muted);
 }
 </style>

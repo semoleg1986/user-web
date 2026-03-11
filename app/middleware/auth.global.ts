@@ -1,5 +1,5 @@
 export default defineNuxtRouteMiddleware(async (to) => {
-  const protectedPrefixes = ['/children', '/assignments', '/attempts']
+  const protectedPrefixes = ['/children', '/assignments', '/attempts', '/settings']
   if (!protectedPrefixes.some(prefix => to.path.startsWith(prefix))) return
 
   if (import.meta.server) {

@@ -18,13 +18,13 @@
       <div class="tabs">
         <button
           :class="['tab', mode === 'login' && 'active']"
-          @click="mode = 'login'"
+          @click="switchMode('login')"
         >
           Login
         </button>
         <button
           :class="['tab', mode === 'register' && 'active']"
-          @click="mode = 'register'"
+          @click="switchMode('register')"
         >
           Register
         </button>
@@ -53,11 +53,23 @@
           >
         </label>
 
+        <label v-if="mode === 'register'">
+          Your name
+          <input
+            v-model="displayName"
+            type="text"
+            placeholder="John Doe"
+            minlength="2"
+            maxlength="120"
+            required
+          >
+        </label>
+
         <div
           v-if="mode === 'register'"
           class="hint"
         >
-          We will redirect you to login after registration.
+          We will create your profile immediately after registration.
         </div>
 
         <button
@@ -96,6 +108,7 @@
 const mode = ref<'login' | 'register'>('login')
 const identifier = ref('')
 const password = ref('')
+const displayName = ref('')
 const loading = ref(false)
 const error = ref('')
 const notice = ref('')
@@ -119,11 +132,22 @@ const getErrorDetail = (err: unknown, fallback: string): string => {
   return fallback
 }
 
+const switchMode = (next: 'login' | 'register') => {
+  mode.value = next
+  error.value = ''
+  notice.value = ''
+}
+
 const onRegister = async () => {
   error.value = ''
   loading.value = true
   try {
     notice.value = ''
+    const name = displayName.value.trim()
+    if (name.length < 2) {
+      throw createError({ statusCode: 400, statusMessage: 'Name must be at least 2 characters' })
+    }
+
     const body: Record<string, string> = { password: password.value }
     if (identifier.value.includes('@')) {
       body.email = identifier.value
@@ -143,7 +167,17 @@ const onRegister = async () => {
       method: 'POST',
       body: { identifier: identifier.value, password: password.value }
     })
+    try {
+      await $fetch('/api/user/create', {
+        method: 'POST',
+        body: { name }
+      })
+    } catch {
+      notice.value = 'Account created. Complete profile setup on the next screen.'
+    }
+
     authState.value.isAuthed = true
+    displayName.value = ''
     await navigateTo('/children')
   } catch (err: unknown) {
     error.value = getErrorDetail(err, 'Registration failed')
@@ -173,27 +207,30 @@ const onLogin = async () => {
 <style scoped>
 .page {
   min-height: 100vh;
-  background: radial-gradient(circle at 10% 20%, #eef2ff, #fff 40%, #fef3c7 85%);
+  background:
+    radial-gradient(circle at 15% 15%, rgba(59, 130, 246, 0.16), transparent 42%),
+    radial-gradient(circle at 85% 85%, rgba(2, 132, 199, 0.12), transparent 44%),
+    var(--bg);
   display: grid;
   place-items: center;
   padding: 20px;
 }
 .card {
   width: min(460px, 92vw);
-  background: #fff;
+  background: var(--panel);
   border-radius: 16px;
   padding: 28px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
 }
 .eyebrow {
   text-transform: uppercase;
   letter-spacing: 0.2em;
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--muted);
 }
 .subtitle {
-  color: #6b7280;
+  color: var(--muted);
   margin-top: 6px;
 }
 .tabs {
@@ -205,16 +242,15 @@ const onLogin = async () => {
 .tab {
   padding: 8px 12px;
   border-radius: 10px;
-  border: 1px solid #e5e7eb;
-  background: #fff;
+  border: 1px solid var(--border);
+  background: var(--panel);
   font-weight: 600;
-  color: #374151;
+  color: var(--text);
   cursor: pointer;
 }
 .tab.active {
-  background: #111827;
-  color: #fff;
-  border-color: #111827;
+  background: color-mix(in srgb, #22c55e 18%, var(--panel));
+  border-color: color-mix(in srgb, #22c55e 60%, var(--border));
 }
 .form {
   display: grid;
@@ -225,22 +261,24 @@ label {
   display: grid;
   gap: 6px;
   font-size: 0.9rem;
-  color: #374151;
+  color: var(--text);
 }
 input {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 0.95rem;
+  background: var(--panel);
+  color: var(--text);
 }
 .hint {
   font-size: 0.85rem;
-  color: #6b7280;
+  color: var(--muted);
 }
 .btn {
   margin-top: 8px;
-  background: #111827;
-  color: #fff;
+  background: #0f172a;
+  color: #ffffff;
   padding: 10px 16px;
   border-radius: 10px;
   border: none;
@@ -259,7 +297,19 @@ input {
   margin-top: 16px;
 }
 .link {
-  color: #2563eb;
+  color: color-mix(in srgb, #22c55e 55%, var(--text));
   text-decoration: none;
+}
+
+:global(.dark) .btn {
+  background: #2563eb;
+  color: #e5e7eb;
+}
+
+:global(.dark) .page {
+  background:
+    radial-gradient(circle at 15% 15%, rgba(37, 99, 235, 0.22), transparent 42%),
+    radial-gradient(circle at 85% 85%, rgba(14, 165, 233, 0.16), transparent 44%),
+    var(--bg);
 }
 </style>
