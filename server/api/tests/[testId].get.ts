@@ -1,4 +1,4 @@
-import { getAccessToken, getUserIdFromJwt } from '~~/server/utils/auth'
+import { ensureAccessToken, fetchWithAuthRetry, getUserIdFromJwt } from '~~/server/utils/auth'
 import { ensureUuid } from '~~/server/utils/validation'
 
 type TestItem = {
@@ -16,10 +16,7 @@ type TestItem = {
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-  const token = getAccessToken(event)
-  if (!token) {
-    throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
-  }
+  const token = await ensureAccessToken(event)
   const userId = getUserIdFromJwt(token)
   if (!userId) {
     throw createError({ statusCode: 401, statusMessage: 'Invalid token' })
@@ -31,8 +28,8 @@ export default defineEventHandler(async (event) => {
   }
   ensureUuid(testId, 'testId')
 
-  const tests = await $fetch<TestItem[]>(`${config.assessmentServiceUrl}/v1/tests`, {
-    headers: { Authorization: `Bearer ${token}` }
+  const tests = await fetchWithAuthRetry<TestItem[]>(event, `${config.assessmentServiceUrl}/v1/tests`, {
+    method: 'GET'
   })
 
   const found = tests.find(t => t.test_id === testId)

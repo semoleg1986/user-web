@@ -1,12 +1,9 @@
-import { getAccessToken, getUserIdFromJwt } from '~~/server/utils/auth'
+import { ensureAccessToken, fetchWithAuthRetry, getUserIdFromJwt } from '~~/server/utils/auth'
 import { readRequiredStringField } from '~~/server/utils/validation'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-  const token = getAccessToken(event)
-  if (!token) {
-    throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
-  }
+  const token = await ensureAccessToken(event)
   const userId = getUserIdFromJwt(token)
   if (!userId) {
     throw createError({ statusCode: 401, statusMessage: 'Invalid token' })
@@ -16,9 +13,8 @@ export default defineEventHandler(async (event) => {
   const name = readRequiredStringField(rawBody, 'name', { minLength: 1, maxLength: 120 })
 
   try {
-    const res = await $fetch(`${config.userChildrenServiceUrl}/v1/user/users`, {
+    const res = await fetchWithAuthRetry(event, `${config.userChildrenServiceUrl}/v1/user/users`, {
       method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
       body: { name },
     })
     return res

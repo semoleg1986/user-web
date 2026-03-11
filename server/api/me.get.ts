@@ -1,21 +1,19 @@
-import { getAccessToken, getUserIdFromJwt } from '~~/server/utils/auth'
+import { ensureAccessToken, fetchWithAuthRetry, getUserIdFromJwt } from '~~/server/utils/auth'
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-  const token = getAccessToken(event)
-  if (!token) {
-    throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
-  }
+  const token = await ensureAccessToken(event)
   const userId = getUserIdFromJwt(token)
   if (!userId) {
     throw createError({ statusCode: 401, statusMessage: 'Invalid token' })
   }
 
   try {
-    const children = await $fetch(
+    const children = await fetchWithAuthRetry(
+      event,
       `${config.userChildrenServiceUrl}/v1/user/users/${userId}/children`,
       {
-        headers: { Authorization: `Bearer ${token}` }
+        method: 'GET'
       }
     )
 

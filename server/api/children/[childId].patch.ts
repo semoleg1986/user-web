@@ -1,4 +1,4 @@
-import { getAccessToken, getUserIdFromJwt } from '~~/server/utils/auth'
+import { ensureAccessToken, fetchWithAuthRetry, getUserIdFromJwt } from '~~/server/utils/auth'
 import {
   ensureUuid,
   readOptionalStringField,
@@ -7,10 +7,7 @@ import {
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-  const token = getAccessToken(event)
-  if (!token) {
-    throw createError({ statusCode: 401, statusMessage: 'Unauthorized' })
-  }
+  const token = await ensureAccessToken(event)
   const userId = getUserIdFromJwt(token)
   if (!userId) {
     throw createError({ statusCode: 401, statusMessage: 'Invalid token' })
@@ -32,11 +29,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 422, statusMessage: "At least one field is required: 'name' or 'birthdate'" })
   }
 
-  return await $fetch(
+  return await fetchWithAuthRetry(
+    event,
     `${config.userChildrenServiceUrl}/v1/user/users/${userId}/children/${childId}`,
     {
       method: 'PATCH',
-      headers: { Authorization: `Bearer ${token}` },
       body: { name, birthdate },
     }
   )
