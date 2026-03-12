@@ -1,4 +1,4 @@
-import { getHeader } from 'h3'
+import { getHeader, getRequestIP } from 'h3'
 import { setAccessToken, setRefreshToken } from '~~/server/utils/auth'
 import { readRequiredStringField } from '~~/server/utils/validation'
 
@@ -9,10 +9,12 @@ export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   const forwardedFor = getHeader(event, 'x-forwarded-for')
   const realIp = getHeader(event, 'x-real-ip')
+  const fallbackIp = getRequestIP(event, { xForwardedFor: true }) || undefined
   const userAgent = getHeader(event, 'user-agent')
   const headers: Record<string, string> = {}
   if (forwardedFor) headers['x-forwarded-for'] = forwardedFor
-  if (realIp) headers['x-real-ip'] = realIp
+  if (realIp || fallbackIp) headers['x-real-ip'] = realIp || fallbackIp!
+  if (!forwardedFor && fallbackIp) headers['x-forwarded-for'] = fallbackIp
   if (userAgent) headers['user-agent'] = userAgent
 
   try {
