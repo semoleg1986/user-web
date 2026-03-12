@@ -9,12 +9,19 @@
       </div>
       <button
         class="btn btn--ghost"
-        :disabled="loading"
+        :disabled="loading || childrenResource.isLoading.value || childrenResource.isRefreshing.value"
         @click="loadChildren"
       >
-        Refresh
+        {{ childrenResource.isRefreshing.value ? 'Syncing...' : 'Refresh' }}
       </button>
     </header>
+
+    <p
+      v-if="updatedLabel"
+      class="updated"
+    >
+      updated {{ updatedLabel }}
+    </p>
 
     <section class="stats-grid">
       <article class="stats-card">
@@ -234,14 +241,15 @@ const activeAssignmentsLabel = computed(() => {
   return activeAssignmentsCount.value === null ? 'n/a' : String(activeAssignmentsCount.value)
 })
 
-const loadAssignmentsSummary = async () => {
-  if (!activeChildren.value.length) {
+const loadAssignmentsSummary = async (childrenList: Child[]) => {
+  const list = childrenList.filter(child => normalizedStatus(child) !== 'archived')
+  if (!list.length) {
     activeAssignmentsCount.value = 0
     return
   }
 
   const results = await Promise.allSettled(
-    activeChildren.value.map(child => $fetch<Assignment[]>(`/api/assignments?childId=${encodeURIComponent(child.child_id)}`))
+    list.map(child => $fetch<Assignment[]>(`/api/assignments?childId=${encodeURIComponent(child.child_id)}`))
   )
 
   let total = 0
@@ -264,33 +272,43 @@ const loadAssignmentsSummary = async () => {
   activeAssignmentsCount.value = failed ? null : total
 }
 
-const loadChildren = async () => {
+const fetchChildren = async () => {
   error.value = ''
   profileNotice.value = ''
-  loading.value = true
   try {
-    children.value = await $fetch('/api/children')
+    const data = await $fetch<Child[]>('/api/children')
     needsProfile.value = false
-    await loadAssignmentsSummary()
+    return data
   } catch (err: unknown) {
     const e = err as HttpError
-    activeAssignmentsCount.value = null
     if (e.statusCode === 404) {
       needsProfile.value = true
       profileNotice.value = 'Finish profile setup to start adding children.'
-      children.value = []
-    } else if (e.statusCode === 503) {
-      error.value = 'User-children service is unavailable. Try again in a moment.'
-      children.value = []
-      needsProfile.value = false
-    } else {
-      error.value = e.data?.detail || 'Failed to load children'
-      needsProfile.value = false
+      activeAssignmentsCount.value = 0
+      return []
     }
-  } finally {
-    loading.value = false
+    throw err
   }
 }
+
+const childrenResource = useLiveResource(
+  fetchChildren,
+  {
+    pollIntervalMs: 20000,
+    pollWhenHidden: false,
+    refetchOnFocus: true,
+    refetchOnReconnect: true
+  }
+)
+
+const loadChildren = async () => {
+  await childrenResource.refresh()
+}
+
+const updatedLabel = computed(() => {
+  if (!childrenResource.lastUpdatedAt.value) return ''
+  return childrenResource.lastUpdatedAt.value.toLocaleTimeString()
+})
 
 const onCreateUser = async () => {
   error.value = ''
@@ -305,7 +323,7 @@ const onCreateUser = async () => {
     }
     needsProfile.value = false
     userName.value = ''
-    await loadChildren()
+    await childrenResource.refresh()
   } catch (err: unknown) {
     error.value = (err as HttpError).data?.detail || 'Failed to create user'
   } finally {
@@ -323,7 +341,7 @@ const onAddChild = async () => {
     })
     childName.value = ''
     childBirthdate.value = ''
-    await loadChildren()
+    await childrenResource.refresh()
   } catch (err: unknown) {
     error.value = (err as HttpError).data?.detail || 'Failed to add child'
   } finally {
@@ -336,7 +354,7 @@ const removeChild = async (childId: string) => {
   loading.value = true
   try {
     await $fetch(`/api/children/${childId}`, { method: 'DELETE' })
-    await loadChildren()
+    await childrenResource.refresh()
   } catch (err: unknown) {
     error.value = (err as HttpError).data?.detail || 'Failed to archive child'
   } finally {
@@ -349,7 +367,7 @@ const restoreChild = async (childId: string) => {
   loading.value = true
   try {
     await $fetch(`/api/children/${childId}/restore`, { method: 'POST' })
-    await loadChildren()
+    await childrenResource.refresh()
   } catch (err: unknown) {
     error.value = (err as HttpError).data?.detail || 'Failed to restore child'
   } finally {
@@ -357,7 +375,29 @@ const restoreChild = async (childId: string) => {
   }
 }
 
-onMounted(loadChildren)
+watch(
+  () => childrenResource.data.value,
+  async (value) => {
+    children.value = value ?? []
+    await loadAssignmentsSummary(children.value)
+  },
+  { immediate: true }
+)
+
+watch(
+  () => childrenResource.error.value,
+  (value) => {
+    if (!value) return
+    const last = childrenResource.lastError.value as
+      | { statusCode?: number, data?: { detail?: string } }
+      | null
+    if (last?.statusCode === 503) {
+      error.value = 'User-children service is unavailable. Try again in a moment.'
+      return
+    }
+    error.value = last?.data?.detail || value
+  }
+)
 </script>
 
 <style scoped>
@@ -554,6 +594,13 @@ input {
 .notice-page {
   max-width: 1120px;
   margin: 16px auto 0;
+}
+
+.updated {
+  max-width: 1120px;
+  margin: 0 auto 10px;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 .error {

@@ -78,10 +78,10 @@
           </p>
           <button
             class="btn btn--ghost"
-            :disabled="loading"
+            :disabled="loading || assignmentsResource.isLoading.value || assignmentsResource.isRefreshing.value"
             @click="load"
           >
-            Refresh assignments
+            {{ assignmentsResource.isRefreshing.value ? 'Syncing...' : 'Refresh assignments' }}
           </button>
           <NuxtLink
             class="btn btn--ghost"
@@ -129,6 +129,15 @@ const childNameLabel = computed(() => {
 const assignments = ref<AssignmentItem[]>([])
 const loading = ref(false)
 const error = ref('')
+const assignmentsResource = useLiveResource(
+  async () => await $fetch<AssignmentItem[]>(`/api/assignments?childId=${encodeURIComponent(childId.value)}`),
+  {
+    pollIntervalMs: 20000,
+    pollWhenHidden: false,
+    refetchOnFocus: true,
+    refetchOnReconnect: true
+  }
+)
 
 const grouped = computed<GroupedAssignments>(() => {
   const assigned: AssignmentItem[] = []
@@ -175,24 +184,7 @@ const actionLabel = (status: string): string => {
 }
 
 const load = async () => {
-  error.value = ''
-  loading.value = true
-  try {
-    assignments.value = await $fetch<AssignmentItem[]>(
-      `/api/assignments?childId=${encodeURIComponent(childId.value)}`
-    )
-  } catch (err: unknown) {
-    const message
-      = typeof err === 'object' && err !== null && 'data' in err
-        ? String(
-            ((err as { data?: { detail?: string } }).data?.detail
-              ?? 'Failed to load assignments')
-          )
-        : 'Failed to load assignments'
-    error.value = message
-  } finally {
-    loading.value = false
-  }
+  await assignmentsResource.refresh()
 }
 
 const start = async (item: AssignmentItem) => {
@@ -223,7 +215,21 @@ const start = async (item: AssignmentItem) => {
   }
 }
 
-onMounted(load)
+watch(
+  () => assignmentsResource.data.value,
+  (value) => {
+    assignments.value = value ?? []
+  },
+  { immediate: true }
+)
+
+watch(
+  () => assignmentsResource.error.value,
+  (value) => {
+    if (!value) return
+    error.value = value
+  }
+)
 </script>
 
 <style scoped>
