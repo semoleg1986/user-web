@@ -16,13 +16,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
 
       - name: Install node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
           cache: pnpm
@@ -31,13 +31,13 @@ jobs:
         run: pnpm install
 
       - name: Checkout provider specs (auth-service)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: semoleg1986/auth-service
           path: deps/auth-service
 
       - name: Checkout provider specs (user-children-service)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: semoleg1986/user-children-service
           path: deps/user-children-service
