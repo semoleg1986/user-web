@@ -3,7 +3,8 @@ import { ensureUuid } from '~~/server/utils/validation'
 
 type SubmitAnswerPayload = {
   question_id: string
-  value: string
+  value?: string
+  selected_option_id?: string
 }
 
 export default defineEventHandler(async (event) => {
@@ -38,16 +39,37 @@ export default defineEventHandler(async (event) => {
     }
 
     const questionId = (item as { question_id?: unknown }).question_id
-    const value = (item as { value?: unknown }).value
-    if (typeof questionId !== 'string' || typeof value !== 'string') {
+    const valueRaw = (item as { value?: unknown }).value
+    const selectedOptionRaw = (item as { selected_option_id?: unknown }).selected_option_id
+    if (typeof questionId !== 'string') {
       throw createError({
         statusCode: 422,
-        statusMessage: `answers[${idx}] must contain 'question_id' and 'value'`
+        statusMessage: `answers[${idx}] must contain 'question_id'`
       })
     }
     ensureUuid(questionId, `answers[${idx}].question_id`)
 
-    return { question_id: questionId, value }
+    if (valueRaw !== undefined && typeof valueRaw !== 'string') {
+      throw createError({
+        statusCode: 422,
+        statusMessage: `answers[${idx}].value must be a string`
+      })
+    }
+    if (selectedOptionRaw !== undefined && typeof selectedOptionRaw !== 'string') {
+      throw createError({
+        statusCode: 422,
+        statusMessage: `answers[${idx}].selected_option_id must be a string`
+      })
+    }
+
+    const answer: SubmitAnswerPayload = { question_id: questionId }
+    if (typeof valueRaw === 'string') {
+      answer.value = valueRaw
+    }
+    if (typeof selectedOptionRaw === 'string') {
+      answer.selected_option_id = selectedOptionRaw
+    }
+    return answer
   })
 
   return await fetchWithAuthRetry(

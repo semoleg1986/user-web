@@ -44,10 +44,36 @@
           :key="q.question_id"
           class="question"
         >
-          <label>
+          <div class="question__head">
             <strong>{{ q.text }}</strong>
+            <span class="chip">{{ q.question_type }}</span>
+          </div>
+
+          <div v-if="q.question_type === 'single_choice'">
+            <label
+              v-for="option in q.options"
+              :key="`${q.question_id}-${option.option_id}`"
+              class="choice"
+            >
+              <input
+                v-model="selectedOptions[q.question_id]"
+                type="radio"
+                :name="`question-${q.question_id}`"
+                :value="option.option_id"
+              >
+              <span>{{ option.text }}</span>
+            </label>
+            <p
+              v-if="!q.options.length"
+              class="muted"
+            >
+              No options available.
+            </p>
+          </div>
+
+          <label v-else>
             <input
-              v-model="answers[q.question_id]"
+              v-model="textAnswers[q.question_id]"
               type="text"
               placeholder="Your answer"
             >
@@ -103,6 +129,12 @@
 type TestQuestion = {
   question_id: string
   text: string
+  question_type: 'text' | 'single_choice'
+  options: Array<{
+    option_id: string
+    text: string
+    position: number
+  }>
 }
 
 type TestDetails = {
@@ -116,6 +148,9 @@ type AttemptResult = {
   score: number
   answers: Array<{
     question_id: string
+    value: string | null
+    selected_option_id: string | null
+    resolved_diagnostic_tag: string | null
     is_correct: boolean
   }>
 }
@@ -134,21 +169,44 @@ const backTo = computed(() => {
 })
 
 const questions = ref<TestQuestion[]>([])
-const answers = ref<Record<string, string>>({})
+const textAnswers = ref<Record<string, string>>({})
+const selectedOptions = ref<Record<string, string>>({})
 const loading = ref(false)
 const error = ref('')
 const result = ref<AttemptResult | null>(null)
 const savedSignature = ref('')
 
-const payloadAnswers = () =>
-  questions.value.map(q => ({
-    question_id: q.question_id,
-    value: answers.value[q.question_id] || ''
-  }))
+type AnswerPayload = {
+  question_id: string
+  value?: string
+  selected_option_id?: string
+}
+
+const payloadAnswers = (): AnswerPayload[] =>
+  questions.value.map((question) => {
+    if (question.question_type === 'single_choice') {
+      const selected = selectedOptions.value[question.question_id] || ''
+      return {
+        question_id: question.question_id,
+        selected_option_id: selected || undefined
+      }
+    }
+    return {
+      question_id: question.question_id,
+      value: textAnswers.value[question.question_id] || ''
+    }
+  })
 
 const snapshot = () => JSON.stringify(payloadAnswers())
 
-const answeredCount = computed(() => payloadAnswers().filter(item => item.value.trim().length > 0).length)
+const answeredCount = computed(() =>
+  payloadAnswers().filter((item) => {
+    if (typeof item.selected_option_id === 'string') {
+      return item.selected_option_id.trim().length > 0
+    }
+    return typeof item.value === 'string' && item.value.trim().length > 0
+  }).length
+)
 const totalCount = computed(() => questions.value.length)
 const hasUnsaved = computed(() => snapshot() !== savedSignature.value)
 
@@ -162,11 +220,17 @@ const loadQuestions = async () => {
   try {
     const test = await $fetch<TestDetails>(`/api/tests/${testId.value}`)
     questions.value = test.questions
-    const initial: Record<string, string> = {}
+    const initialText: Record<string, string> = {}
+    const initialSelected: Record<string, string> = {}
     for (const question of test.questions) {
-      initial[question.question_id] = ''
+      if (question.question_type === 'single_choice') {
+        initialSelected[question.question_id] = ''
+      } else {
+        initialText[question.question_id] = ''
+      }
     }
-    answers.value = initial
+    textAnswers.value = initialText
+    selectedOptions.value = initialSelected
     savedSignature.value = snapshot()
   } catch (err: unknown) {
     const message
@@ -277,6 +341,8 @@ onMounted(loadQuestions)
   border-radius: 12px;
   padding: 12px;
   margin-bottom: 10px;
+  display: grid;
+  gap: 10px;
 }
 
 .question:last-of-type {
@@ -286,6 +352,31 @@ onMounted(loadQuestions)
 label {
   display: grid;
   gap: 8px;
+}
+
+.question__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
 }
 
 input {

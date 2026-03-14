@@ -10,6 +10,12 @@ type TestItem = {
     question_id: string
     node_id: string
     text: string
+    question_type: 'text' | 'single_choice'
+    options: Array<{
+      option_id: string
+      text: string
+      position: number
+    }>
     max_score: number
   }>
 }
