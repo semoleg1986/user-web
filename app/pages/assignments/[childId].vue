@@ -204,14 +204,16 @@ const start = async (item: AssignmentItem) => {
       `/attempts/${res.attempt_id}?testId=${item.test_id}&childId=${childId.value}&name=${encodeURIComponent(childNameLabel.value)}`
     )
   } catch (err: unknown) {
-    const message
-      = typeof err === 'object' && err !== null && 'data' in err
-        ? String(
-            ((err as { data?: { detail?: string } }).data?.detail
-              ?? 'Failed to start attempt')
-          )
-        : 'Failed to start attempt'
-    error.value = message
+    const detail = typeof err === 'object' && err !== null && 'data' in err
+      ? String((err as { data?: { detail?: string } }).data?.detail ?? '')
+      : ''
+    if (detail === 'attempt for this assignment already exists') {
+      error.value = 'Attempt already exists for this assignment.'
+    } else if (detail === 'attempt for this test already exists') {
+      error.value = 'This test was already submitted. Ask moderator to assign retake.'
+    } else {
+      error.value = detail || 'Failed to start attempt'
+    }
   } finally {
     loading.value = false
   }
