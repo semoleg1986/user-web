@@ -25,7 +25,10 @@
           v-for="row in result.answers"
           :key="row.question_id"
         >
-          <span>{{ row.question_id }}</span>
+          <div class="result-item__left">
+            <span>{{ row.question_id }}</span>
+            <span class="muted">{{ formatDuration(row.time_spent_ms ?? 0) }}</span>
+          </div>
           <strong :class="row.is_correct ? 'ok' : 'bad'">
             {{ row.is_correct ? 'correct' : 'wrong' }}
           </strong>
@@ -38,33 +41,34 @@
       class="layout-grid"
     >
       <section class="card">
-        <h2>Questions</h2>
+        <h2>Question {{ currentQuestionNumber }} / {{ totalCount }}</h2>
+
         <article
-          v-for="q in questions"
-          :key="q.question_id"
+          v-if="currentQuestion"
+          :key="currentQuestion.question_id"
           class="question"
         >
           <div class="question__head">
-            <strong>{{ q.text }}</strong>
-            <span class="chip">{{ q.question_type }}</span>
+            <strong>{{ currentQuestion.text }}</strong>
+            <span class="chip">{{ currentQuestion.question_type }}</span>
           </div>
 
-          <div v-if="q.question_type === 'single_choice'">
+          <div v-if="currentQuestion.question_type === 'single_choice'">
             <label
-              v-for="option in q.options"
-              :key="`${q.question_id}-${option.option_id}`"
+              v-for="option in currentQuestion.options"
+              :key="`${currentQuestion.question_id}-${option.option_id}`"
               class="choice"
             >
               <input
-                v-model="selectedOptions[q.question_id]"
+                v-model="selectedOptions[currentQuestion.question_id]"
                 type="radio"
-                :name="`question-${q.question_id}`"
+                :name="`question-${currentQuestion.question_id}`"
                 :value="option.option_id"
               >
               <span>{{ option.text }}</span>
             </label>
             <p
-              v-if="!q.options.length"
+              v-if="!currentQuestion.options.length"
               class="muted"
             >
               No options available.
@@ -73,15 +77,19 @@
 
           <label v-else>
             <input
-              v-model="textAnswers[q.question_id]"
+              v-model="textAnswers[currentQuestion.question_id]"
               type="text"
               placeholder="Your answer"
             >
           </label>
+
+          <div class="question__meta">
+            <span class="muted">Time on this question: {{ formatDuration(currentQuestionElapsedMs) }}</span>
+          </div>
         </article>
 
         <p
-          v-if="!questions.length"
+          v-else
           class="muted"
         >
           No questions found for this test.
@@ -93,12 +101,33 @@
         <p class="muted">
           {{ answeredCount }} / {{ totalCount }} answered
         </p>
+        <p class="muted">
+          Total time: {{ formatDuration(totalTimeSpentMs) }}
+        </p>
         <p
           class="dirty"
           :class="hasUnsaved ? 'dirty--yes' : 'dirty--no'"
         >
           {{ hasUnsaved ? 'Unsaved changes' : 'All changes saved' }}
         </p>
+
+        <div class="nav-buttons">
+          <button
+            class="btn btn--ghost"
+            :disabled="loading || currentIndex <= 0"
+            @click="goPrev"
+          >
+            Previous
+          </button>
+          <button
+            class="btn btn--ghost"
+            :disabled="loading || currentIndex >= totalCount - 1"
+            @click="goNext"
+          >
+            Next
+          </button>
+        </div>
+
         <button
           class="btn btn--ghost"
           :disabled="loading"
@@ -151,8 +180,16 @@ type AttemptResult = {
     value: string | null
     selected_option_id: string | null
     resolved_diagnostic_tag: string | null
+    time_spent_ms: number | null
     is_correct: boolean
   }>
+}
+
+type AnswerPayload = {
+  question_id: string
+  value?: string
+  selected_option_id?: string
+  time_spent_ms?: number
 }
 
 const route = useRoute()
@@ -171,36 +208,101 @@ const backTo = computed(() => {
 const questions = ref<TestQuestion[]>([])
 const textAnswers = ref<Record<string, string>>({})
 const selectedOptions = ref<Record<string, string>>({})
+const timeSpentMsByQuestion = ref<Record<string, number>>({})
+const activeQuestionId = ref<string | null>(null)
+const questionEnteredAtMs = ref(0)
+const currentIndex = ref(0)
+const nowTick = ref(Date.now())
 const loading = ref(false)
 const error = ref('')
 const result = ref<AttemptResult | null>(null)
 const savedSignature = ref('')
+let ticker: ReturnType<typeof setInterval> | null = null
 
-type AnswerPayload = {
-  question_id: string
-  value?: string
-  selected_option_id?: string
+const currentQuestion = computed(() => questions.value[currentIndex.value] ?? null)
+const currentQuestionNumber = computed(() => {
+  if (!questions.value.length) return 0
+  return currentIndex.value + 1
+})
+
+const formatDuration = (valueMs: number): string => {
+  const totalSeconds = Math.max(0, Math.floor(valueMs / 1000))
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  const minutesLabel = String(minutes).padStart(2, '0')
+  const secondsLabel = String(seconds).padStart(2, '0')
+  return `${minutesLabel}:${secondsLabel}`
 }
 
-const payloadAnswers = (): AnswerPayload[] =>
+const startTicker = () => {
+  if (ticker) return
+  ticker = setInterval(() => {
+    nowTick.value = Date.now()
+  }, 1000)
+}
+
+const stopTicker = () => {
+  if (!ticker) return
+  clearInterval(ticker)
+  ticker = null
+}
+
+const activateQuestionTimer = (questionId: string) => {
+  activeQuestionId.value = questionId
+  questionEnteredAtMs.value = Date.now()
+}
+
+const flushCurrentQuestionTime = () => {
+  const questionId = activeQuestionId.value
+  if (!questionId || questionEnteredAtMs.value <= 0) return
+  const elapsed = Date.now() - questionEnteredAtMs.value
+  if (elapsed > 0) {
+    timeSpentMsByQuestion.value[questionId] = (timeSpentMsByQuestion.value[questionId] || 0) + elapsed
+  }
+  questionEnteredAtMs.value = Date.now()
+}
+
+const setQuestionByIndex = (targetIndex: number) => {
+  if (targetIndex < 0 || targetIndex >= questions.value.length) return
+  if (activeQuestionId.value) {
+    flushCurrentQuestionTime()
+  }
+  currentIndex.value = targetIndex
+  const nextQuestion = questions.value[targetIndex]
+  if (nextQuestion) {
+    activateQuestionTimer(nextQuestion.question_id)
+  }
+}
+
+const payloadAnswers = (includeTime: boolean): AnswerPayload[] =>
   questions.value.map((question) => {
+    const answer: AnswerPayload = {
+      question_id: question.question_id
+    }
+
     if (question.question_type === 'single_choice') {
       const selected = selectedOptions.value[question.question_id] || ''
-      return {
-        question_id: question.question_id,
-        selected_option_id: selected || undefined
+      if (selected) {
+        answer.selected_option_id = selected
       }
+    } else {
+      answer.value = textAnswers.value[question.question_id] || ''
     }
-    return {
-      question_id: question.question_id,
-      value: textAnswers.value[question.question_id] || ''
+
+    if (includeTime) {
+      answer.time_spent_ms = Math.max(
+        0,
+        Math.round(timeSpentMsByQuestion.value[question.question_id] || 0)
+      )
     }
+
+    return answer
   })
 
-const snapshot = () => JSON.stringify(payloadAnswers())
+const snapshot = () => JSON.stringify(payloadAnswers(false))
 
 const answeredCount = computed(() =>
-  payloadAnswers().filter((item) => {
+  payloadAnswers(false).filter((item) => {
     if (typeof item.selected_option_id === 'string') {
       return item.selected_option_id.trim().length > 0
     }
@@ -209,6 +311,31 @@ const answeredCount = computed(() =>
 )
 const totalCount = computed(() => questions.value.length)
 const hasUnsaved = computed(() => snapshot() !== savedSignature.value)
+
+const currentQuestionElapsedMs = computed(() => {
+  const question = currentQuestion.value
+  if (!question) return 0
+  const base = timeSpentMsByQuestion.value[question.question_id] || 0
+  if (
+    activeQuestionId.value === question.question_id
+    && questionEnteredAtMs.value > 0
+  ) {
+    return base + Math.max(0, nowTick.value - questionEnteredAtMs.value)
+  }
+  return base
+})
+
+const totalTimeSpentMs = computed(() => {
+  const known = Object.values(timeSpentMsByQuestion.value).reduce((sum, value) => sum + value, 0)
+  if (
+    currentQuestion.value
+    && activeQuestionId.value === currentQuestion.value.question_id
+    && questionEnteredAtMs.value > 0
+  ) {
+    return known + Math.max(0, nowTick.value - questionEnteredAtMs.value)
+  }
+  return known
+})
 
 const loadQuestions = async () => {
   error.value = ''
@@ -220,17 +347,33 @@ const loadQuestions = async () => {
   try {
     const test = await $fetch<TestDetails>(`/api/tests/${testId.value}`)
     questions.value = test.questions
+
     const initialText: Record<string, string> = {}
     const initialSelected: Record<string, string> = {}
+    const initialTime: Record<string, number> = {}
+
     for (const question of test.questions) {
       if (question.question_type === 'single_choice') {
         initialSelected[question.question_id] = ''
       } else {
         initialText[question.question_id] = ''
       }
+      initialTime[question.question_id] = 0
     }
+
     textAnswers.value = initialText
     selectedOptions.value = initialSelected
+    timeSpentMsByQuestion.value = initialTime
+    currentIndex.value = 0
+
+    const firstQuestion = test.questions.at(0)
+    if (firstQuestion) {
+      activateQuestionTimer(firstQuestion.question_id)
+    } else {
+      activeQuestionId.value = null
+      questionEnteredAtMs.value = 0
+    }
+
     savedSignature.value = snapshot()
   } catch (err: unknown) {
     const message
@@ -247,10 +390,12 @@ const loadQuestions = async () => {
 const saveAnswers = async () => {
   error.value = ''
   loading.value = true
+  flushCurrentQuestionTime()
+
   try {
     await $fetch(`/api/attempts/${attemptId.value}/answers`, {
       method: 'POST',
-      body: { answers: payloadAnswers() }
+      body: { answers: payloadAnswers(true) }
     })
     savedSignature.value = snapshot()
   } catch (err: unknown) {
@@ -270,13 +415,17 @@ const saveAnswers = async () => {
 const submitAttempt = async () => {
   error.value = ''
   loading.value = true
+  flushCurrentQuestionTime()
+
   try {
     await $fetch(`/api/attempts/${attemptId.value}/submit`, {
       method: 'POST',
-      body: { answers: payloadAnswers() }
+      body: { answers: payloadAnswers(true) }
     })
     savedSignature.value = snapshot()
     result.value = await $fetch<AttemptResult>(`/api/attempts/${attemptId.value}/result`)
+    activeQuestionId.value = null
+    questionEnteredAtMs.value = 0
   } catch (err: unknown) {
     const message
       = typeof err === 'object' && err !== null && 'data' in err
@@ -291,7 +440,36 @@ const submitAttempt = async () => {
   }
 }
 
-onMounted(loadQuestions)
+const goNext = () => {
+  setQuestionByIndex(currentIndex.value + 1)
+}
+
+const goPrev = () => {
+  setQuestionByIndex(currentIndex.value - 1)
+}
+
+const onVisibilityChange = () => {
+  if (document.hidden) {
+    flushCurrentQuestionTime()
+    questionEnteredAtMs.value = 0
+    return
+  }
+  if (currentQuestion.value && !result.value) {
+    activateQuestionTimer(currentQuestion.value.question_id)
+  }
+}
+
+onMounted(async () => {
+  startTicker()
+  document.addEventListener('visibilitychange', onVisibilityChange)
+  await loadQuestions()
+})
+
+onBeforeUnmount(() => {
+  flushCurrentQuestionTime()
+  stopTicker()
+  document.removeEventListener('visibilitychange', onVisibilityChange)
+})
 </script>
 
 <style scoped>
@@ -340,13 +518,8 @@ onMounted(loadQuestions)
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px;
-  margin-bottom: 10px;
   display: grid;
   gap: 10px;
-}
-
-.question:last-of-type {
-  margin-bottom: 0;
 }
 
 label {
@@ -359,6 +532,11 @@ label {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+}
+
+.question__meta {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
 }
 
 .chip {
@@ -395,6 +573,12 @@ input {
   gap: 10px;
 }
 
+.nav-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .result-list {
   margin: 8px 0 0;
   padding: 0;
@@ -409,7 +593,13 @@ input {
   padding: 8px 10px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 10px;
+}
+
+.result-item__left {
+  display: grid;
+  gap: 4px;
 }
 
 .ok {

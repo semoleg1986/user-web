@@ -5,6 +5,7 @@ type AnswerPayload = {
   question_id: string
   value?: string
   selected_option_id?: string
+  time_spent_ms?: number
 }
 
 export default defineEventHandler(async (event) => {
@@ -41,6 +42,7 @@ export default defineEventHandler(async (event) => {
     const questionId = (item as { question_id?: unknown }).question_id
     const valueRaw = (item as { value?: unknown }).value
     const selectedOptionRaw = (item as { selected_option_id?: unknown }).selected_option_id
+    const timeSpentRaw = (item as { time_spent_ms?: unknown }).time_spent_ms
     if (typeof questionId !== 'string') {
       throw createError({
         statusCode: 422,
@@ -61,6 +63,14 @@ export default defineEventHandler(async (event) => {
         statusMessage: `answers[${idx}].selected_option_id must be a string`
       })
     }
+    if (timeSpentRaw !== undefined) {
+      if (!Number.isInteger(timeSpentRaw) || Number(timeSpentRaw) < 0) {
+        throw createError({
+          statusCode: 422,
+          statusMessage: `answers[${idx}].time_spent_ms must be a non-negative integer`
+        })
+      }
+    }
 
     const answer: AnswerPayload = { question_id: questionId }
     if (typeof valueRaw === 'string') {
@@ -68,6 +78,9 @@ export default defineEventHandler(async (event) => {
     }
     if (typeof selectedOptionRaw === 'string') {
       answer.selected_option_id = selectedOptionRaw
+    }
+    if (typeof timeSpentRaw === 'number') {
+      answer.time_spent_ms = timeSpentRaw
     }
     return answer
   })

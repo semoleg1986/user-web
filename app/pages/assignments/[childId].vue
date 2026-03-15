@@ -54,7 +54,7 @@
             </div>
             <button
               class="btn"
-              :disabled="loading"
+              :disabled="loading || isStartBlocked(item.status)"
               @click="start(item)"
             >
               {{ actionLabel(item.status) }}
@@ -178,10 +178,12 @@ const actionLabel = (status: string): string => {
     return 'Continue'
   }
   if (normalized === 'submitted') {
-    return 'Restart'
+    return 'Completed'
   }
   return 'Start'
 }
+
+const isStartBlocked = (status: string): boolean => status.toLowerCase() === 'submitted'
 
 const load = async () => {
   await assignmentsResource.refresh()
