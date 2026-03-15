@@ -131,7 +131,7 @@
         <button
           class="btn btn--ghost"
           :disabled="loading"
-          @click="saveAnswers"
+          @click="saveAnswers()"
         >
           Save draft
         </button>
@@ -218,6 +218,9 @@ const error = ref('')
 const result = ref<AttemptResult | null>(null)
 const savedSignature = ref('')
 let ticker: ReturnType<typeof setInterval> | null = null
+let autosaveTicker: ReturnType<typeof setInterval> | null = null
+
+const AUTOSAVE_INTERVAL_MS = 15000
 
 const currentQuestion = computed(() => questions.value[currentIndex.value] ?? null)
 const currentQuestionNumber = computed(() => {
@@ -245,6 +248,23 @@ const stopTicker = () => {
   if (!ticker) return
   clearInterval(ticker)
   ticker = null
+}
+
+const startAutosaveTicker = () => {
+  if (autosaveTicker) return
+  autosaveTicker = setInterval(() => {
+    if (result.value) return
+    if (loading.value) return
+    if (!questions.value.length) return
+    if (!hasUnsaved.value) return
+    void saveAnswers({ silent: true })
+  }, AUTOSAVE_INTERVAL_MS)
+}
+
+const stopAutosaveTicker = () => {
+  if (!autosaveTicker) return
+  clearInterval(autosaveTicker)
+  autosaveTicker = null
 }
 
 const activateQuestionTimer = (questionId: string) => {
@@ -365,14 +385,8 @@ const loadQuestions = async () => {
     selectedOptions.value = initialSelected
     timeSpentMsByQuestion.value = initialTime
     currentIndex.value = 0
-
-    const firstQuestion = test.questions.at(0)
-    if (firstQuestion) {
-      activateQuestionTimer(firstQuestion.question_id)
-    } else {
-      activeQuestionId.value = null
-      questionEnteredAtMs.value = 0
-    }
+    activeQuestionId.value = null
+    questionEnteredAtMs.value = 0
 
     savedSignature.value = snapshot()
   } catch (err: unknown) {
@@ -387,8 +401,83 @@ const loadQuestions = async () => {
   }
 }
 
-const saveAnswers = async () => {
-  error.value = ''
+const applySavedAttemptState = (attemptState: AttemptResult) => {
+  const nextText = { ...textAnswers.value }
+  const nextSelected = { ...selectedOptions.value }
+  const nextTime = { ...timeSpentMsByQuestion.value }
+  const byQuestionId = new Map(
+    attemptState.answers.map(item => [item.question_id, item] as const)
+  )
+
+  for (const question of questions.value) {
+    const saved = byQuestionId.get(question.question_id)
+    if (!saved) continue
+
+    if (question.question_type === 'single_choice') {
+      nextSelected[question.question_id] = saved.selected_option_id ?? ''
+    } else {
+      nextText[question.question_id] = saved.value ?? ''
+    }
+
+    nextTime[question.question_id] = Math.max(0, saved.time_spent_ms ?? 0)
+  }
+
+  textAnswers.value = nextText
+  selectedOptions.value = nextSelected
+  timeSpentMsByQuestion.value = nextTime
+
+  const firstUnansweredIndex = questions.value.findIndex((question) => {
+    if (question.question_type === 'single_choice') {
+      return !selectedOptions.value[question.question_id]
+    }
+    return !(textAnswers.value[question.question_id] || '').trim()
+  })
+  if (firstUnansweredIndex >= 0) {
+    currentIndex.value = firstUnansweredIndex
+    return
+  }
+  currentIndex.value = Math.max(0, questions.value.length - 1)
+}
+
+const loadAttemptState = async () => {
+  try {
+    const attemptState = await $fetch<AttemptResult>(
+      `/api/attempts/${attemptId.value}/result`
+    )
+
+    const status = attemptState.status.toLowerCase()
+    if (status === 'submitted') {
+      result.value = attemptState
+      activeQuestionId.value = null
+      questionEnteredAtMs.value = 0
+      return
+    }
+
+    applySavedAttemptState(attemptState)
+    savedSignature.value = snapshot()
+  } catch (err: unknown) {
+    const statusCode = (
+      typeof err === 'object'
+      && err !== null
+      && 'statusCode' in err
+      && typeof (err as { statusCode?: unknown }).statusCode === 'number'
+    )
+      ? Number((err as { statusCode: number }).statusCode)
+      : undefined
+
+    if (statusCode === 404) {
+      return
+    }
+  }
+}
+
+const saveAnswers = async (options: { silent?: boolean } = {}) => {
+  if (result.value) return
+  if (loading.value) return
+  if (!questions.value.length) return
+  if (!options.silent) {
+    error.value = ''
+  }
   loading.value = true
   flushCurrentQuestionTime()
 
@@ -399,14 +488,16 @@ const saveAnswers = async () => {
     })
     savedSignature.value = snapshot()
   } catch (err: unknown) {
-    const message
-      = typeof err === 'object' && err !== null && 'data' in err
-        ? String(
-            ((err as { data?: { detail?: string } }).data?.detail
-              ?? 'Failed to save answers')
-          )
-        : 'Failed to save answers'
-    error.value = message
+    if (!options.silent) {
+      const message
+        = typeof err === 'object' && err !== null && 'data' in err
+          ? String(
+              ((err as { data?: { detail?: string } }).data?.detail
+                ?? 'Failed to save answers')
+            )
+          : 'Failed to save answers'
+      error.value = message
+    }
   } finally {
     loading.value = false
   }
@@ -442,16 +533,19 @@ const submitAttempt = async () => {
 
 const goNext = () => {
   setQuestionByIndex(currentIndex.value + 1)
+  void saveAnswers({ silent: true })
 }
 
 const goPrev = () => {
   setQuestionByIndex(currentIndex.value - 1)
+  void saveAnswers({ silent: true })
 }
 
 const onVisibilityChange = () => {
   if (document.hidden) {
     flushCurrentQuestionTime()
     questionEnteredAtMs.value = 0
+    void saveAnswers({ silent: true })
     return
   }
   if (currentQuestion.value && !result.value) {
@@ -459,16 +553,30 @@ const onVisibilityChange = () => {
   }
 }
 
+const onPageHide = () => {
+  flushCurrentQuestionTime()
+  questionEnteredAtMs.value = 0
+  void saveAnswers({ silent: true })
+}
+
 onMounted(async () => {
   startTicker()
+  startAutosaveTicker()
   document.addEventListener('visibilitychange', onVisibilityChange)
+  window.addEventListener('pagehide', onPageHide)
   await loadQuestions()
+  await loadAttemptState()
+  if (!result.value && currentQuestion.value) {
+    activateQuestionTimer(currentQuestion.value.question_id)
+  }
 })
 
 onBeforeUnmount(() => {
-  flushCurrentQuestionTime()
+  onPageHide()
   stopTicker()
+  stopAutosaveTicker()
   document.removeEventListener('visibilitychange', onVisibilityChange)
+  window.removeEventListener('pagehide', onPageHide)
 })
 </script>
 
