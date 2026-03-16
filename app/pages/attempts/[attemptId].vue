@@ -53,23 +53,6 @@
             <span class="chip">{{ currentQuestion.question_type }}</span>
           </div>
 
-          <div class="question__nav">
-            <button
-              class="btn btn--ghost"
-              :disabled="loading || currentIndex <= 0"
-              @click="goPrev"
-            >
-              Previous
-            </button>
-            <button
-              class="btn btn--ghost"
-              :disabled="loading || currentIndex >= totalCount - 1"
-              @click="goNext"
-            >
-              Next
-            </button>
-          </div>
-
           <div v-if="currentQuestion.question_type === 'single_choice'">
             <label
               v-for="option in currentQuestion.options"
@@ -102,6 +85,23 @@
 
           <div class="question__meta">
             <span class="muted">Time on this question: {{ formatDuration(currentQuestionElapsedMs) }}</span>
+          </div>
+
+          <div class="question__nav">
+            <button
+              class="btn btn--ghost"
+              :disabled="loading || currentIndex <= 0"
+              @click="goPrev"
+            >
+              Previous
+            </button>
+            <button
+              class="btn btn--ghost"
+              :disabled="loading || currentIndex >= totalCount - 1"
+              @click="goNext"
+            >
+              Next
+            </button>
           </div>
         </article>
 
