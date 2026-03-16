@@ -49,8 +49,25 @@
           class="question"
         >
           <div class="question__head">
-            <strong>{{ currentQuestion.text }}</strong>
+            <strong class="question__title">{{ currentQuestion.text }}</strong>
             <span class="chip">{{ currentQuestion.question_type }}</span>
+          </div>
+
+          <div class="question__nav">
+            <button
+              class="btn btn--ghost"
+              :disabled="loading || currentIndex <= 0"
+              @click="goPrev"
+            >
+              Previous
+            </button>
+            <button
+              class="btn btn--ghost"
+              :disabled="loading || currentIndex >= totalCount - 1"
+              @click="goNext"
+            >
+              Next
+            </button>
           </div>
 
           <div v-if="currentQuestion.question_type === 'single_choice'">
@@ -111,21 +128,26 @@
           {{ hasUnsaved ? 'Unsaved changes' : 'All changes saved' }}
         </p>
 
-        <div class="nav-buttons">
+        <div
+          class="progress-dots"
+          role="list"
+          aria-label="Questions progress"
+        >
           <button
-            class="btn btn--ghost"
-            :disabled="loading || currentIndex <= 0"
-            @click="goPrev"
-          >
-            Previous
-          </button>
-          <button
-            class="btn btn--ghost"
-            :disabled="loading || currentIndex >= totalCount - 1"
-            @click="goNext"
-          >
-            Next
-          </button>
+            v-for="(question, index) in questions"
+            :key="question.question_id"
+            type="button"
+            role="listitem"
+            class="progress-dots__item"
+            :disabled="loading"
+            :aria-label="`Go to question ${index + 1}`"
+            :title="questionDotTitle(question, index)"
+            :class="{
+              'progress-dots__item--answered': isQuestionAnswered(question),
+              'progress-dots__item--active': index === currentIndex
+            }"
+            @click="goToQuestion(index)"
+          />
         </div>
 
         <button
@@ -331,6 +353,16 @@ const answeredCount = computed(() =>
 )
 const totalCount = computed(() => questions.value.length)
 const hasUnsaved = computed(() => snapshot() !== savedSignature.value)
+const isQuestionAnswered = (question: TestQuestion): boolean => {
+  if (question.question_type === 'single_choice') {
+    return Boolean((selectedOptions.value[question.question_id] || '').trim())
+  }
+  return Boolean((textAnswers.value[question.question_id] || '').trim())
+}
+const questionDotTitle = (question: TestQuestion, index: number): string => {
+  const status = isQuestionAnswered(question) ? 'answered' : 'not answered'
+  return `Question ${index + 1}: ${status}`
+}
 
 const currentQuestionElapsedMs = computed(() => {
   const question = currentQuestion.value
@@ -541,6 +573,12 @@ const goPrev = () => {
   void saveAnswers({ silent: true })
 }
 
+const goToQuestion = (targetIndex: number) => {
+  if (targetIndex === currentIndex.value) return
+  setQuestionByIndex(targetIndex)
+  void saveAnswers({ silent: true })
+}
+
 const onVisibilityChange = () => {
   if (document.hidden) {
     flushCurrentQuestionTime()
@@ -642,6 +680,16 @@ label {
   gap: 10px;
 }
 
+.question__title {
+  flex: 1;
+}
+
+.question__nav {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .question__meta {
   border-top: 1px solid var(--border);
   padding-top: 8px;
@@ -681,10 +729,34 @@ input {
   gap: 10px;
 }
 
-.nav-buttons {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.progress-dots {
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  padding: 2px 0;
+}
+
+.progress-dots__item {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+  border: 1px solid var(--border);
+  padding: 0;
+  cursor: pointer;
+}
+
+.progress-dots__item:disabled {
+  cursor: not-allowed;
+}
+
+.progress-dots__item--answered {
+  background: #22c55e;
+  border-color: #16a34a;
+}
+
+.progress-dots__item--active {
+  box-shadow: 0 0 0 2px color-mix(in srgb, #2563eb 35%, transparent);
 }
 
 .result-list {
