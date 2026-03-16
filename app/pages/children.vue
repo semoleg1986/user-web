@@ -78,37 +78,6 @@
           </p>
         </section>
 
-        <section class="card">
-          <details :open="archivedChildren.length > 0">
-            <summary>Archived children ({{ archivedChildren.length }})</summary>
-            <div class="archived-list">
-              <article
-                v-for="child in archivedChildren"
-                :key="child.child_id"
-                class="child child--archived"
-              >
-                <div>
-                  <h3>{{ child.name }}</h3>
-                  <p>{{ child.birthdate }}</p>
-                </div>
-                <button
-                  class="btn"
-                  :disabled="loading"
-                  @click="restoreChild(child.child_id)"
-                >
-                  Restore
-                </button>
-              </article>
-
-              <p
-                v-if="!archivedChildren.length"
-                class="muted"
-              >
-                No archived children.
-              </p>
-            </div>
-          </details>
-        </section>
       </div>
 
       <aside class="side-column">
@@ -234,7 +203,6 @@ const childBirthdate = ref('')
 const normalizedStatus = (child: Child): string => String(child.status || 'active').toLowerCase()
 
 const activeChildren = computed(() => children.value.filter(child => normalizedStatus(child) !== 'archived'))
-const archivedChildren = computed(() => children.value.filter(child => normalizedStatus(child) === 'archived'))
 
 const activeAssignmentsLabel = computed(() => {
   if (needsProfile.value) return '—'
@@ -357,19 +325,6 @@ const removeChild = async (childId: string) => {
     await childrenResource.refresh()
   } catch (err: unknown) {
     error.value = (err as HttpError).data?.detail || 'Failed to archive child'
-  } finally {
-    loading.value = false
-  }
-}
-
-const restoreChild = async (childId: string) => {
-  error.value = ''
-  loading.value = true
-  try {
-    await $fetch(`/api/children/${childId}/restore`, { method: 'POST' })
-    await childrenResource.refresh()
-  } catch (err: unknown) {
-    error.value = (err as HttpError).data?.detail || 'Failed to restore child'
   } finally {
     loading.value = false
   }
@@ -508,23 +463,10 @@ watch(
   color: var(--muted);
 }
 
-.child--archived {
-  opacity: 0.9;
-}
-
 .actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-details summary {
-  cursor: pointer;
-  font-weight: 700;
-}
-
-.archived-list {
-  margin-top: 10px;
 }
 
 .card--sticky {

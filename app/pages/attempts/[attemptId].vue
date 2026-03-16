@@ -90,14 +90,14 @@
           <div class="question__nav">
             <button
               class="btn btn--ghost"
-              :disabled="loading || currentIndex <= 0"
+              :disabled="isSubmitting || currentIndex <= 0"
               @click="goPrev"
             >
               Previous
             </button>
             <button
               class="btn btn--ghost"
-              :disabled="loading || currentIndex >= totalCount - 1"
+              :disabled="isSubmitting || currentIndex >= totalCount - 1"
               @click="goNext"
             >
               Next
@@ -139,7 +139,7 @@
             type="button"
             role="listitem"
             class="progress-dots__item"
-            :disabled="loading"
+            :disabled="isSubmitting"
             :aria-label="`Go to question ${index + 1}`"
             :title="questionDotTitle(question, index)"
             :class="{
@@ -152,14 +152,14 @@
 
         <button
           class="btn btn--ghost"
-          :disabled="loading"
+          :disabled="isSubmitting || isSavingDraft"
           @click="saveAnswers()"
         >
           Save draft
         </button>
         <button
           class="btn"
-          :disabled="loading || !questions.length"
+          :disabled="isSubmitting || isSavingDraft || !questions.length"
           @click="submitAttempt"
         >
           Submit
@@ -235,14 +235,17 @@ const activeQuestionId = ref<string | null>(null)
 const questionEnteredAtMs = ref(0)
 const currentIndex = ref(0)
 const nowTick = ref(Date.now())
-const loading = ref(false)
+const isSavingDraft = ref(false)
+const isSubmitting = ref(false)
 const error = ref('')
 const result = ref<AttemptResult | null>(null)
 const savedSignature = ref('')
 let ticker: ReturnType<typeof setInterval> | null = null
 let autosaveTicker: ReturnType<typeof setInterval> | null = null
+let draftSaveTimer: ReturnType<typeof setTimeout> | null = null
 
 const AUTOSAVE_INTERVAL_MS = 15000
+const INPUT_SAVE_DEBOUNCE_MS = 1200
 
 const currentQuestion = computed(() => questions.value[currentIndex.value] ?? null)
 const currentQuestionNumber = computed(() => {
@@ -276,7 +279,7 @@ const startAutosaveTicker = () => {
   if (autosaveTicker) return
   autosaveTicker = setInterval(() => {
     if (result.value) return
-    if (loading.value) return
+    if (isSavingDraft.value || isSubmitting.value) return
     if (!questions.value.length) return
     if (!hasUnsaved.value) return
     void saveAnswers({ silent: true })
@@ -287,6 +290,12 @@ const stopAutosaveTicker = () => {
   if (!autosaveTicker) return
   clearInterval(autosaveTicker)
   autosaveTicker = null
+}
+
+const stopDraftSaveTimer = () => {
+  if (!draftSaveTimer) return
+  clearTimeout(draftSaveTimer)
+  draftSaveTimer = null
 }
 
 const activateQuestionTimer = (questionId: string) => {
@@ -505,20 +514,22 @@ const loadAttemptState = async () => {
 
 const saveAnswers = async (options: { silent?: boolean } = {}) => {
   if (result.value) return
-  if (loading.value) return
+  if (isSavingDraft.value || isSubmitting.value) return
   if (!questions.value.length) return
+  if (!hasUnsaved.value) return
   if (!options.silent) {
     error.value = ''
   }
-  loading.value = true
+  isSavingDraft.value = true
   flushCurrentQuestionTime()
+  const requestSignature = snapshot()
 
   try {
     await $fetch(`/api/attempts/${attemptId.value}/answers`, {
       method: 'POST',
       body: { answers: payloadAnswers(true) }
     })
-    savedSignature.value = snapshot()
+    savedSignature.value = requestSignature
   } catch (err: unknown) {
     if (!options.silent) {
       const message
@@ -531,13 +542,14 @@ const saveAnswers = async (options: { silent?: boolean } = {}) => {
       error.value = message
     }
   } finally {
-    loading.value = false
+    isSavingDraft.value = false
   }
 }
 
 const submitAttempt = async () => {
   error.value = ''
-  loading.value = true
+  if (isSubmitting.value) return
+  isSubmitting.value = true
   flushCurrentQuestionTime()
 
   try {
@@ -559,7 +571,7 @@ const submitAttempt = async () => {
         : 'Failed to submit attempt'
     error.value = message
   } finally {
-    loading.value = false
+    isSubmitting.value = false
   }
 }
 
@@ -579,11 +591,32 @@ const goToQuestion = (targetIndex: number) => {
   void saveAnswers({ silent: true })
 }
 
+const persistAnswersOnUnload = () => {
+  if (result.value || !questions.value.length || isSubmitting.value) return
+  if (!hasUnsaved.value) return
+
+  const body = JSON.stringify({ answers: payloadAnswers(true) })
+  const url = `/api/attempts/${attemptId.value}/answers`
+  if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+    const blob = new Blob([body], { type: 'application/json' })
+    navigator.sendBeacon(url, blob)
+    return
+  }
+
+  void fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body,
+    keepalive: true,
+    credentials: 'same-origin'
+  })
+}
+
 const onVisibilityChange = () => {
   if (document.hidden) {
     flushCurrentQuestionTime()
     questionEnteredAtMs.value = 0
-    void saveAnswers({ silent: true })
+    persistAnswersOnUnload()
     return
   }
   if (currentQuestion.value && !result.value) {
@@ -594,8 +627,18 @@ const onVisibilityChange = () => {
 const onPageHide = () => {
   flushCurrentQuestionTime()
   questionEnteredAtMs.value = 0
-  void saveAnswers({ silent: true })
+  persistAnswersOnUnload()
 }
+
+const queueDraftSave = () => {
+  if (result.value || isSubmitting.value) return
+  stopDraftSaveTimer()
+  draftSaveTimer = setTimeout(() => {
+    void saveAnswers({ silent: true })
+  }, INPUT_SAVE_DEBOUNCE_MS)
+}
+
+watch([textAnswers, selectedOptions], queueDraftSave, { deep: true })
 
 onMounted(async () => {
   startTicker()
@@ -613,6 +656,7 @@ onBeforeUnmount(() => {
   onPageHide()
   stopTicker()
   stopAutosaveTicker()
+  stopDraftSaveTimer()
   document.removeEventListener('visibilitychange', onVisibilityChange)
   window.removeEventListener('pagehide', onPageHide)
 })
